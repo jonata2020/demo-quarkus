@@ -1,13 +1,71 @@
-# Use the latest 2.1 version of CircleCI pipeline process engine. See: https://circleci.com/docs/2.0/configuration-reference
-version: 2.1
-# Use a package of configuration called an orb.
-orbs:
-  # Declare a dependency on the welcome-orb
-  welcome: circleci/welcome-orb@0.4.1
-# Orchestrate or schedule a set of jobs
-workflows:
-  # Name the workflow "welcome"
-  welcome:
-    # Run the welcome/run job in its own container
-    jobs:
-      - welcome/run
+#
+# Arquivo de configuração nativo do Quarkus CircleCI
+#
+versão : 2
+empregos :
+  construir :
+    # Use "machine" em vez de, por exemplo, "docker" para obter resultados melhores / mais rápidos
+    # machine: true
+    # Usa uma máquina de tamanho "médio" - talvez aumente para "grande" se você pagar pelo CircleCI
+    resource_class : medium
+    working_directory : ~ / repositório
+    ambiente :
+      MAVEN_OPTS : -Xmx6400m
+
+    janela de encaixe :
+      - image : circleci / openjdk: 11.0.6-jdk-stretch
+      # Defina a variável env GRAALVM_HOME para o local em que instalaremos o GraalVM
+      # GRAALVM_HOME: /home/circleci/repo/.graalvm
+    etapas :
+      # Faça o checkout do código fonte
+      # ########################
+      - checkout
+
+      # Restaurar todos os arquivos que possamos ter armazenado em cache
+      # ########################
+      - restore_cache :
+          chaves :
+            - v1-quarkus-jonata - {{checksum "pom.xml"}}
+            # recorrer ao uso do cache mais recente se nenhuma correspondência exata for encontrada
+            - v1-quarkus-jonata-
+
+      # Faça o download de dependências automatizadas para que possamos armazená-las em cache
+      # ########################
+      - executar :
+          nome : Dependências de download
+          comando : mvn dependência: ficar offline
+      # Armazenar em cache as dependências do maven
+      - save_cache :
+          caminhos :
+            - ~ / .m2
+          chave : v1-quarkus-jonata - {{checksum "pom.xml"}}
+
+      # Fases padrão de compilação e teste do maven - não executa uma compilação nativa (ou verifica)
+      # ########################
+      - executar :
+          nome : Compilação (padrão)
+          comando : mvn clean package -DskipTests -Dmaven.test.skip = true
+      # - execute:
+      #     name: Verificar (Padrão)
+      #     comando: mvn test
+
+      # Instale o GraalVM e a imagem nativa, necessários para uma compilação nativa do Quarkus
+      # GraalVM 19.3.1 suporta Java 11
+      # ########################
+      # - execute:
+      #     name: Instale o GraalVM
+      #     command: curl https://github.com/graalvm/graalvm-ce-builds/releases/download/vm-19.3.1/graalvm-ce-java11-linux-amd64-19.3.1.tar.gz -O - J -L && tar xfz graalvm-ce-linux-amd64-19.3.1.tar.gz && mv graalvm-ce-19.3.1 .graalvm && rm graalvm-ce-linux-amd64-19.3.1.tar.gz
+      # - execute:
+      #     name: instalar imagem nativa
+      #     comando: $ GRAALVM_HOME / bin / gu install native-image
+
+          # Execute uma compilação nativa do Quarkus e verifique
+      # ########################
+      # - execute:
+      #     name: Build (Nativo)
+      #     command: ./mvnw pacote limpo -Pnative -DskipTests -Dmaven.test.skip = true
+      #     no_output_timeout: 30m
+      # - execute:
+      #     name: Verificar (Nativo)
+      #     comando: ./mvnw verifica -Pnativo
+      #     no_output_timeout: 30m
